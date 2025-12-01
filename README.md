@@ -5,7 +5,7 @@ Send joystick events over UDP to a remote PC using Python.
 ## Files
 
 - **joystick_udp.py** - Class module for sending joystick events over UDP
-- **sendJoy.py** - Reads joystick events from `jstest` and sends them over UDP
+- **send_joy.py** - Reads joystick events from `jstest` and sends them over UDP
 - **receive_joy.py** - Receives and displays joystick events over UDP
 
 ## Quick Start
@@ -21,7 +21,7 @@ python3 receive_joy.py
 
 **Terminal 2 - Start the sender:**
 ```bash
-python3 sendJoy.py -d -v
+python3 send_joy.py -d -v
 ```
 
 Move your joystick or press buttons. You should see events in both terminals.
@@ -35,17 +35,17 @@ python3 receive_joy.py
 
 **On the sending PC (with joystick connected):**
 ```bash
-python3 sendJoy.py -d --host 192.168.1.100
+python3 send_joy.py -d --host 192.168.1.100
 ```
 
 ## Usage
 
-### Sender (sendJoy.py)
+### Sender (send_joy.py)
 
 **Important:** The sender requires at least the `-d` flag (for defaults) or another option to run. Without any arguments, it displays the help page.
 
 ```bash
-python3 sendJoy.py -d [--device DEVICE] [--host HOST] [--port PORT] [-v]
+python3 send_joy.py -d [--device DEVICE] [--host HOST] [--port PORT] [-v]
 ```
 
 Options:
@@ -55,30 +55,30 @@ Options:
 - `--port PORT` - Target UDP port (default: `5005`)
 - `-v, --verbose` - Enable verbose output (shows events being sent)
 
-**Note:** By default, `sendJoy.py` shows a brief startup message then runs silently. Use `-v` or `--verbose` to see each event as it's sent.
+**Note:** By default, `send_joy.py` shows a brief startup message then runs silently. Use `-v` or `--verbose` to see each event as it's sent.
 
 Examples:
 ```bash
 # Show help (no arguments)
-python3 sendJoy.py
+python3 send_joy.py
 
 # Run with all defaults (localhost:5005, /dev/input/js0)
-python3 sendJoy.py -d
+python3 send_joy.py -d
 
 # Run with defaults and verbose output
-python3 sendJoy.py -d -v
+python3 send_joy.py -d -v
 
 # Send to remote PC
-python3 sendJoy.py -d --host 192.168.1.100
+python3 send_joy.py -d --host 192.168.1.100
 
 # Send to remote PC with verbose output
-python3 sendJoy.py -d --host 192.168.1.100 --verbose
+python3 send_joy.py -d --host 192.168.1.100 --verbose
 
 # Different joystick device
-python3 sendJoy.py --device /dev/input/js1 --host 192.168.1.100
+python3 send_joy.py --device /dev/input/js1 --host 192.168.1.100
 
 # Custom port with verbose mode
-python3 sendJoy.py -d --host 192.168.1.100 --port 6000 -v
+python3 send_joy.py -d --host 192.168.1.100 --port 6000 -v
 ```
 
 ### Receiver (receive_joy.py)
@@ -134,7 +134,7 @@ sudo apt install joystick
 
 **"No such device"**
 - Check joystick is connected: `ls /dev/input/js*`
-- Try different device: `python3 sendJoy.py --device /dev/input/js1`
+- Try different device: `python3 send_joy.py --device /dev/input/js1`
 
 **No data received on local network**
 - Check firewall allows UDP on port 5005
