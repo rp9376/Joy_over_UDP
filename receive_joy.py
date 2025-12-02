@@ -46,6 +46,7 @@ def main():
     
     # Create UDP socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sock.settimeout(1.0)  # Set 1 second timeout to allow Ctrl+C to work
     
     try:
         # Bind to address
@@ -56,8 +57,12 @@ def main():
             print("-" * 60)
         
         while True:
-            # Receive data
-            data, addr = sock.recvfrom(1024)  # Buffer size 1024 bytes
+            try:
+                # Receive data
+                data, addr = sock.recvfrom(1024)  # Buffer size 1024 bytes
+            except socket.timeout:
+                # Timeout occurred, just continue to allow Ctrl+C checking
+                continue
             
             try:
                 # Decode JSON
