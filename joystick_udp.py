@@ -64,17 +64,3 @@ class JoystickUDP:
         """Context manager exit - ensures socket is closed."""
         self.close()
 
-
-if __name__ == "__main__":
-    # Simple test
-    print("Testing JoystickUDP...")
-    with JoystickUDP(host='localhost', port=5005) as sender:
-        # Send a test button press
-        sender.send_event(event_type=1, time=1000, number=0, value=1)
-        print("Sent test button press event")
-        
-        # Send a test axis movement
-        sender.send_event(event_type=2, time=1001, number=1, value=-32767)
-        print("Sent test axis movement event")
-    
-    print("Done!")
