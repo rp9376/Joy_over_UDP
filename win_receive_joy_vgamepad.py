@@ -18,18 +18,116 @@ Axis Mapping (Linux joystick to Xbox 360):
   Axis 1 (Left Y)  -> Left Stick Y
   Axis 2 (Right X) -> Right Stick X
   Axis 3 (Right Y) -> Right Stick Y
-  Axis 4 (L2)      -> Left Trigger
-  Axis 5 (R2)      -> Right Trigger
+  Axis 6           -> Left Trigger
+  Axis 7           -> Right Trigger
   
 Button Mapping:
   All buttons are mapped to corresponding Xbox 360 buttons (0-15)
 """
 
+import os
 import socket
 import json
 import argparse
 import sys
 import vgamepad as vg
+
+# ---------------------------------------------------------------------------
+# Live terminal display
+# ---------------------------------------------------------------------------
+
+# Enable ANSI escape-code support on Windows
+os.system('')
+
+_BAR_WIDTH = 30          # characters inside bar brackets, e.g. [######----]
+_BAR_TOTAL = _BAR_WIDTH + 2   # including the [ and ] brackets
+_VAL_FIELD = _BAR_TOTAL + 8   # bar + space + value string (padded)
+_HLINE_VAL = '\u2500' * (_VAL_FIELD + 2)
+
+
+def _axis_bar(norm: float) -> str:
+    """Centre-anchored bar for a normalised axis value in [-1.0, 1.0]."""
+    half = _BAR_WIDTH // 2
+    fill = round(abs(norm) * half)
+    buf = ['-'] * _BAR_WIDTH
+    if norm >= 0:
+        for i in range(half, min(half + fill, _BAR_WIDTH)):
+            buf[i] = '#'
+    else:
+        for i in range(max(half - fill, 0), half):
+            buf[i] = '#'
+    return '[' + ''.join(buf) + ']'
+
+
+def _button_bar(val: int) -> str:
+    """Full or empty bar for a button value (0 or 1)."""
+    return '[' + ('#' if val else '-') * _BAR_WIDTH + ']'
+
+
+class LiveDisplay:
+    """
+    In-place updating table that shows the state of every received
+    axis and button channel.  Uses ANSI cursor control to overwrite
+    the previous render on each call to ``render()``.
+    """
+
+    def __init__(self) -> None:
+        self._axes: dict[int, int] = {}     # axis_number  -> raw value
+        self._buttons: dict[int, int] = {}  # button_number -> 0 / 1
+        self._prev_lines: int = 0
+
+    def update(self, event_type: int, number: int, value: int) -> None:
+        """Record the latest value for an axis (type 2) or button (type 1)."""
+        if event_type == 2:
+            self._axes[number] = value
+        elif event_type == 1:
+            self._buttons[number] = value
+
+    def render(self) -> None:
+        """Overwrite the previous table render with the current state."""
+        vf = _VAL_FIELD
+        hv = _HLINE_VAL
+
+        lines: list[str] = [
+            f'\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c{hv}\u2510',
+            f'\u2502 Channel \u2502  Type  \u2502    \u00b5s    \u2502 {"Value":<{vf}} \u2502',
+            f'\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u253c{hv}\u2524',
+        ]
+
+        ch = 1
+        for num in sorted(self._axes):
+            raw  = self._axes[num]
+            norm = max(-1.0, min(1.0, raw / 32767.0))
+            us   = 1500.0 + norm * 500.0
+            bar  = _axis_bar(norm)
+            val  = f'{norm:+.3f}'
+            field = f'{bar} {val}'
+            lines.append(
+                f'\u2502  CH{ch:>2}   \u2502 axis   \u2502 {us:>8.1f} \u2502 {field:<{vf}} \u2502'
+            )
+            ch += 1
+
+        for num in sorted(self._buttons):
+            v     = self._buttons[num]
+            us    = 1000.0 + v * 1000.0
+            bar   = _button_bar(v)
+            val   = str(v)
+            field = f'{bar} {val}'
+            lines.append(
+                f'\u2502  CH{ch:>2}   \u2502 button \u2502 {us:>8.1f} \u2502 {field:<{vf}} \u2502'
+            )
+            ch += 1
+
+        lines.append(
+            f'\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534{hv}\u2518'
+        )
+
+        # Erase the previous render and draw the updated table
+        if self._prev_lines:
+            sys.stdout.write(f'\033[{self._prev_lines}A\033[J')
+        sys.stdout.write('\n'.join(lines) + '\n')
+        sys.stdout.flush()
+        self._prev_lines = len(lines)
 
 
 class VirtualControllerMapper:
@@ -45,10 +143,10 @@ class VirtualControllerMapper:
             1: 0,  # Left stick Y (Pitch)
             2: 0,  # Right stick X (Throttle)
             3: 0,  # Right stick Y (Yaw)
-            4: -32767,  # Left trigger (Aux 1 - Potentiometer/Button-axis)
-            5: -32767,  # Right trigger (Aux 2 - Potentiometer/Button-axis)
-            6: 0,  # Aux 3 - additional axis
-            7: 0,  # Aux 4 - additional axis
+            4: 0,  # Aux 1 - additional axis
+            5: 0,  # Aux 2 - additional axis
+            6: -32767,  # Left trigger (Potentiometer/Button-axis)
+            7: -32767,  # Right trigger (Potentiometer/Button-axis)
         }
         
         # Button mapping (Linux joystick button -> Xbox 360 button)
@@ -96,17 +194,17 @@ class VirtualControllerMapper:
                 x_value=self.axis_values[2],
                 y_value=-self.axis_values[3]  # Invert Y for proper direction
             )
-        elif number == 4:  # Left trigger (Aux 1)
+        elif number == 6:  # Left trigger
             # Convert from -32767..32767 to 0..255
             trigger_value = int((value + 32767) / 65534 * 255)
             self.gamepad.left_trigger(value=trigger_value)
-        elif number == 5:  # Right trigger (Aux 2)
+        elif number == 7:  # Right trigger
             # Convert from -32767..32767 to 0..255
             trigger_value = int((value + 32767) / 65534 * 255)
             self.gamepad.right_trigger(value=trigger_value)
-        # Note: Axes 6 and 7 cannot be mapped to Xbox 360 controller
+        # Note: Axes 4 and 5 are not mapped to Xbox 360 controller
         # Xbox 360 only has: 2 sticks (4 axes) + 2 triggers (2 axes) = 6 axes total
-        # If you need axes 6-7, consider using a different virtual controller library
+        # If you need axes 4-5, consider using a different virtual controller library
         
         # Update the virtual controller
         self.gamepad.update()
@@ -176,8 +274,9 @@ def main():
         if not args.quiet:
             print(f"Listening for joystick events on {args.host}:{args.port}...")
             print("Press Ctrl+C to stop")
-            print("-" * 60)
-        
+
+        live_display = LiveDisplay()
+
         while True:
             try:
                 # Receive data
@@ -207,7 +306,8 @@ def main():
                     type_str = f"TYPE{event_type}"
                 
                 if not args.quiet:
-                    print(f"[{addr[0]}:{addr[1]}] Time: {time:>10} | {type_str} | Number: {number:>2} | Value: {value:>6}")
+                    live_display.update(event_type, number, value)
+                    live_display.render()
                 
             except json.JSONDecodeError:
                 if not args.quiet:
